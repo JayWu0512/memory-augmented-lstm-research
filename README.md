@@ -73,15 +73,7 @@ pip install -r requirements.txt
 
 A minimal `requirements.txt` could look like:
 
-### 3.3 Download spaCy model (for NER)
-
-Model 3 and Model 4 use spaCy NER. You must download a language model once:
-
-```bash
-python -m spacy download en_core_web_sm
-```
-
-### 3.4 OpenAI API key (for LLM-as-a-judge)
+### 3.3 OpenAI API key (for LLM-as-a-judge)
 
 If you want to reproduce the **LLM-as-a-judge** evaluation:
 

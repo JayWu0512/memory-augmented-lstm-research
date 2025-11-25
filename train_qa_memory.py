@@ -13,7 +13,6 @@ Testing approach:
   (now using LLM-as-a-judge by default)
 
 Usage:
-    cd backend/src/models/research
     python train_qa_memory.py --epochs 5 --model_type full_memory
 """
 
@@ -28,7 +27,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 
-from openai import OpenAI  # Make sure OPENAI_API_KEY is set in env
+from openai import OpenAI  # For LLM-as-a-judge
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -49,7 +48,7 @@ _VOCAB_SIZE = len(_ITOS)
 _MAX_SEQ_LEN = 512  # Increased for longer answers
 
 # Global OpenAI client (reads OPENAI_API_KEY from environment)
-BASE_DIR = Path(__file__).resolve().parents[3]
+BASE_DIR = Path(__file__).resolve().parent
 env_path = BASE_DIR / ".env"
 load_dotenv(env_path)
 openai_client = OpenAI()

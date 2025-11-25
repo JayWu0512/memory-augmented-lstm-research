@@ -14,7 +14,6 @@ Testing approach:
   (now using LLM-as-a-judge by default)
 
 Usage:
-    cd backend/src/models/research
     python train_qa_dog_cat.py --epochs 5 --model_type full_memory
 """
 
@@ -31,7 +30,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 
-from openai import OpenAI  # Make sure OPENAI_API_KEY is set in env
+from openai import OpenAI  # For LLM-as-a-judge
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -61,22 +60,23 @@ openai_client = OpenAI()
 # ==== Logging setup ====
 class TeeOutput:
     """Write to both console and file."""
+
     def __init__(self, file_path: str):
         # Open in append mode to preserve logs from multiple training runs
-        self.file = open(file_path, 'a', encoding='utf-8')
+        self.file = open(file_path, "a", encoding="utf-8")
         self.stdout = sys.stdout
         self.stderr = sys.stderr
-        
+
     def write(self, text: str):
         self.file.write(text)
         self.file.flush()  # Ensure immediate write
         self.stdout.write(text)
         self.stdout.flush()
-        
+
     def flush(self):
         self.file.flush()
         self.stdout.flush()
-        
+
     def close(self):
         self.file.close()
         sys.stdout = self.stdout
@@ -87,17 +87,17 @@ def setup_logging(log_dir: str = "logs") -> Optional[TeeOutput]:
     """Set up logging to both console and file. Returns TeeOutput object or None."""
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, "output.txt")
-    
+
     # Open in append mode to preserve previous runs
     tee = TeeOutput(log_file)
     sys.stdout = tee
     sys.stderr = tee
-    
+
     # Write separator for new run
     print(f"\n{'=' * 80}")
     print(f"Training started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'=' * 80}\n")
-    
+
     return tee
 
 
@@ -295,13 +295,13 @@ def train_on_batch(
 ) -> float:
     """
     Train on a single QA pair using teacher forcing.
-    
+
     Training approach:
     - Concatenate input (history + question) and target (answer) into one sequence
     - Feed the full sequence to the LSTM
     - Compute loss only on the target portion (answer)
     - This allows the model to learn to generate answers given questions
-    
+
     Note: During inference, we only feed the input and generate the answer
     token by token, which is different from training. This is a common
     approach in sequence-to-sequence learning.
@@ -322,7 +322,7 @@ def train_on_batch(
 
     # Create full sequence: input + target (for teacher forcing)
     full_seq = torch.cat([input_ids, target_ids], dim=0)  # (input_len + target_len,)
-    
+
     # Create batch dimension
     batch_ids = full_seq.unsqueeze(0)  # (1, seq_len)
 
@@ -344,7 +344,9 @@ def train_on_batch(
 
             # Ensure we have the right number of logits
             if pred_logits.size(0) < target_len:
-                padding = pred_logits[-1:, :].repeat(target_len - pred_logits.size(0), 1)
+                padding = pred_logits[-1:, :].repeat(
+                    target_len - pred_logits.size(0), 1
+                )
                 pred_logits = torch.cat([pred_logits, padding], dim=0)
             elif pred_logits.size(0) > target_len:
                 pred_logits = pred_logits[:target_len, :]
@@ -353,13 +355,13 @@ def train_on_batch(
             pred_logits = logits[0, -1:, :].repeat(target_len, 1)
     else:
         # Edge case: empty input, use first target_len logits
-        pred_logits = logits[0, :min(target_len, logits.size(1)), :]
+        pred_logits = logits[0, : min(target_len, logits.size(1)), :]
         if pred_logits.size(0) < target_len:
             padding = pred_logits[-1:, :].repeat(target_len - pred_logits.size(0), 1)
             pred_logits = torch.cat([pred_logits, padding], dim=0)
 
     # Targets are the answer characters (what we want to predict)
-    targets = target_ids[:pred_logits.size(0)]
+    targets = target_ids[: pred_logits.size(0)]
 
     # Compute loss
     loss = criterion(pred_logits, targets)
@@ -386,7 +388,7 @@ def generate_answer(
 ) -> str:
     """
     Generate answer given history and question.
-    
+
     Note: The model was trained to predict answer characters given input.
     During generation, we feed the input and then generate tokens one by one.
     """
@@ -512,7 +514,7 @@ def test_memory(
         in [0, 1]. If score >= threshold, count as success.
     - Else:
         Fall back to difflib similarity as the score.
-    
+
     Note: Both LLM and difflib scores are always calculated for comparison,
     but only the selected one (based on use_llm_judge) is used for threshold comparison.
     """
@@ -541,7 +543,7 @@ def test_memory(
         # Always calculate both scores for comparison
         llm_score = llm_judge_score(question, true_answer, pred_answer)
         difflib_score = text_similarity(pred_answer, true_answer)
-        
+
         # Use the selected score for threshold comparison
         score = llm_score if use_llm_judge else difflib_score
 
@@ -572,12 +574,20 @@ def test_memory(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train QA memory LSTM on Dog-Cat dataset")
+    parser = argparse.ArgumentParser(
+        description="Train QA memory LSTM on Dog-Cat dataset"
+    )
     parser.add_argument(
         "--model_type",
         type=str,
         default="full_memory",
-        choices=["base", "summarization_only", "sum_token_limit", "sum_tok_ner", "full_memory"],
+        choices=[
+            "base",
+            "summarization_only",
+            "sum_token_limit",
+            "sum_tok_ner",
+            "full_memory",
+        ],
         help="Model type to train",
     )
     parser.add_argument("--epochs", type=int, default=5, help="Number of epochs")
@@ -689,7 +699,7 @@ def main():
     print(f"Loading dataset from: {csv_path}")
     rows = load_qa_csv(csv_path, max_rows=args.max_rows)
     print(f"Loaded {len(rows)} QA pairs (limited to first {args.max_rows} rows)")
-    
+
     # Debug: Print first few examples to verify data loading
     if len(rows) > 0:
         print(f"\nSample data (first 2 rows):")
@@ -704,9 +714,7 @@ def main():
 
     # Use "pets" domain for NER feature extraction
     if args.model_type == "base":
-        model = BaseLSTM(
-            vocab_size=vocab_size, emb_dim=emb_dim, hidden_dim=hidden_dim
-        )
+        model = BaseLSTM(vocab_size=vocab_size, emb_dim=emb_dim, hidden_dim=hidden_dim)
     elif args.model_type == "summarization_only":
         model = SummarizationOnlyLSTM(
             vocab_size=vocab_size, emb_dim=emb_dim, hidden_dim=hidden_dim
@@ -741,9 +749,7 @@ def main():
     cache_path = os.path.join(args.cache_dir, f"{args.model_type}_inputs.json")
 
     if not args.keep_cache and os.path.exists(cache_path):
-        print(
-            f"Deleting old cache at {cache_path} to regenerate with current model..."
-        )
+        print(f"Deleting old cache at {cache_path} to regenerate with current model...")
         os.remove(cache_path)
 
     dataset = QADataset(
@@ -858,7 +864,7 @@ def main():
                 avg_loss = total_loss / num_steps if num_steps > 0 else 0.0
                 stm_acc = stm_correct / stm_total if stm_total > 0 else 0.0
                 ltm_acc = ltm_correct / ltm_total if ltm_total > 0 else 0.0
-                
+
                 # Calculate average scores for both LLM and difflib
                 if stm_scores:
                     stm_avg_llm = sum(s[0] for s in stm_scores) / len(stm_scores)
@@ -869,7 +875,7 @@ def main():
                     stm_avg_llm = 0.0
                     stm_avg_difflib = 0.0
                     stm_avg_score = 0.0
-                
+
                 if ltm_scores:
                     ltm_avg_llm = sum(s[0] for s in ltm_scores) / len(ltm_scores)
                     ltm_avg_difflib = sum(s[1] for s in ltm_scores) / len(ltm_scores)
@@ -914,7 +920,7 @@ def main():
         avg_loss = total_loss / num_steps if num_steps > 0 else 0.0
         stm_acc = stm_correct / stm_total if stm_total > 0 else 0.0
         ltm_acc = ltm_correct / ltm_total if ltm_total > 0 else 0.0
-        
+
         # Calculate statistics for both LLM and difflib scores
         if stm_scores:
             stm_llm_scores = [s[0] for s in stm_scores]
@@ -926,8 +932,10 @@ def main():
             stm_min_difflib = min(stm_difflib_scores)
             stm_max_difflib = max(stm_difflib_scores)
         else:
-            stm_avg_llm = stm_avg_difflib = stm_min_llm = stm_max_llm = stm_min_difflib = stm_max_difflib = 0.0
-        
+            stm_avg_llm = stm_avg_difflib = stm_min_llm = stm_max_llm = (
+                stm_min_difflib
+            ) = stm_max_difflib = 0.0
+
         if ltm_scores:
             ltm_llm_scores = [s[0] for s in ltm_scores]
             ltm_difflib_scores = [s[1] for s in ltm_scores]
@@ -938,7 +946,9 @@ def main():
             ltm_min_difflib = min(ltm_difflib_scores)
             ltm_max_difflib = max(ltm_difflib_scores)
         else:
-            ltm_avg_llm = ltm_avg_difflib = ltm_min_llm = ltm_max_llm = ltm_min_difflib = ltm_max_difflib = 0.0
+            ltm_avg_llm = ltm_avg_difflib = ltm_min_llm = ltm_max_llm = (
+                ltm_min_difflib
+            ) = ltm_max_difflib = 0.0
 
         print(f"\nEpoch {epoch} Summary:")
         print(f"  Average loss: {avg_loss:.4f}")
@@ -975,16 +985,14 @@ def main():
         print(f"  Saved checkpoint to {ckpt_path}")
 
         # Save best model (based on STM + LTM accuracy)
-        best_ckpt_path = os.path.join(
-            args.checkpoint_dir, f"{args.model_type}_best.pt"
-        )
+        best_ckpt_path = os.path.join(args.checkpoint_dir, f"{args.model_type}_best.pt")
         if epoch == 1 or (stm_acc + ltm_acc) > best_score:
             best_score = stm_acc + ltm_acc
             torch.save(model.state_dict(), best_ckpt_path)
             print(f"  Saved best model to {best_ckpt_path}")
 
     print("\nTraining complete!")
-    
+
     # Close log file
     if tee_output:
         print(f"\nLog saved to: logs/output.txt")
@@ -993,4 +1001,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
