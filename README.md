@@ -29,7 +29,7 @@ Your repo currently looks like this:
 
 ```text
 .
-├── cache_logs/                 # json that stores full mempry inputs
+├── cache_logs/                 # Json that stores full memory inputs
 ├── cache_qa/                   # Cache for synthetic QA experiments
 ├── cache_qa_dog_cat/           # Cache for dog–cat QA experiments
 ├── checkpoints_qa/             # Model checkpoints for synthetic QA
