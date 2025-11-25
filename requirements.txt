@@ -1,0 +1,7 @@
+torch
+numpy
+openai>=1.40.0
+python-dotenv
+transformers==4.44.2
+tokenizers<0.22
+spacy
